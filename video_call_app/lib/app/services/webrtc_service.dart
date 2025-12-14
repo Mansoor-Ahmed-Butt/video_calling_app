@@ -10,6 +10,8 @@ class WebRTCService {
 
   Stream<RTCIceCandidate> get onIceCandidate => _iceController.stream;
 
+  bool get hasLocalVideo => _localStream != null && (_localStream!.getVideoTracks().isNotEmpty);
+
   Future<void> setup(RTCVideoRenderer local, RTCVideoRenderer remote) async {
     // Ensure camera/microphone permissions before attempting getUserMedia
     final camStatus = await Permission.camera.request();

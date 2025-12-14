@@ -32,8 +32,37 @@ class CallView extends GetView<CallController> {
                   height: 200,
                   child: Container(
                     decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), color: Colors.grey.shade900),
-                    child: ClipRRect(borderRadius: BorderRadius.circular(12), child: RTCVideoView(controller.localRenderer, mirror: true)),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Obx(() {
+                        if (controller.hasLocalStream.value) {
+                          return RTCVideoView(controller.localRenderer, mirror: true);
+                        }
+                        // Placeholder when local camera is not available
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              Icon(Icons.videocam_off, color: Colors.white, size: 36),
+                              SizedBox(height: 6),
+                              Text('No Camera', style: TextStyle(color: Colors.white, fontSize: 12)),
+                            ],
+                          ),
+                        );
+                      }),
+                    ),
                   ),
+                ),
+                // Connecting overlay
+                Obx(
+                  () => controller.connecting.value
+                      ? const Positioned.fill(
+                          child: ColoredBox(
+                            color: Color.fromRGBO(0, 0, 0, 0.5),
+                            child: Center(child: CircularProgressIndicator()),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
                 ),
               ],
             ),

@@ -17,11 +17,13 @@ class CallController extends GetxController {
   final camEnabled = true.obs;
   final speakerEnabled = true.obs;
   final connecting = true.obs;
+  final hasLocalStream = false.obs;
 
   String get roomId => (Get.arguments?['roomId'] as String?) ?? '';
   bool get isCaller => (Get.arguments?['isCaller'] as bool?) ?? false;
 
   StreamSubscription? _iceSub;
+  StreamSubscription? _remoteIceSub;
 
   @override
   void onInit() {
@@ -30,26 +32,41 @@ class CallController extends GetxController {
     _signal = Get.find<FirestoreSignalingService>();
   }
 
+  /// Working with call setup and signaling
   @override
   Future<void> onReady() async {
     await localRenderer.initialize();
     await remoteRenderer.initialize();
 
-    await _rtc.setup(localRenderer, remoteRenderer);
+    try {
+      await _rtc.setup(localRenderer, remoteRenderer);
+      hasLocalStream.value = _rtc.hasLocalVideo;
 
-    if (isCaller) {
-      final offer = await _rtc.createOffer();
-      await _signal.setOffer(roomId, offer);
-      _subscribeToRemoteAnswer();
-    } else {
-      final offer = await _signal.waitForOffer(roomId);
-      await _rtc.setRemoteDescription(offer);
-      final answer = await _rtc.createAnswer();
-      await _signal.setAnswer(roomId, answer);
+      // Subscribe to local ICE and remote ICE early so we don't miss candidates
+      _iceSub = _rtc.onIceCandidate.listen((c) => _signal.addIceCandidate(roomId, c));
+      _remoteIceSub = _signal.onRemoteIce(roomId).listen((c) => _rtc.addRemoteIceCandidate(c));
+
+      if (isCaller) {
+        final offer = await _rtc.createOffer();
+        await _signal.setOffer(roomId, offer);
+        _subscribeToRemoteAnswer();
+      } else {
+        final offer = await _signal.waitForOffer(roomId);
+        await _rtc.setRemoteDescription(offer);
+        final answer = await _rtc.createAnswer();
+        await _signal.setAnswer(roomId, answer);
+      }
+
+      // subscriptions already created above
+    } catch (e) {
+      // Surface a user-friendly error and bail out to previous screen
+      Get.snackbar('Call error', e.toString(), snackPosition: SnackPosition.BOTTOM);
+      connecting.value = false;
+      await localRenderer.dispose();
+      await remoteRenderer.dispose();
+      Get.back();
+      return;
     }
-
-    _iceSub = _rtc.onIceCandidate.listen((c) => _signal.addIceCandidate(roomId, c));
-    _signal.onRemoteIce(roomId).listen((c) => _rtc.addRemoteIceCandidate(c));
     connecting.value = false;
   }
 
@@ -81,6 +98,7 @@ class CallController extends GetxController {
   @override
   Future<void> onClose() async {
     await _iceSub?.cancel();
+    await _remoteIceSub?.cancel();
     await localRenderer.dispose();
     await remoteRenderer.dispose();
     super.onClose();
