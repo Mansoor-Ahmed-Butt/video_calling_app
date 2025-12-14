@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
 import 'app/routes/app_pages.dart';
 import 'app/modules/lobby/lobby_binding.dart';
 
 Future<void> _initFirebase() async {
-  try {
-    await Firebase.initializeApp();
-  } catch (_) {}
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 }
 
 void main() async {

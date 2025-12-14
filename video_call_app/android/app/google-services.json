@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "826955651942",
+    "project_id": "video-call-agora-81a71",
+    "storage_bucket": "video-call-agora-81a71.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:826955651942:android:ef3273cc9566f7022906a7",
+        "android_client_info": {
+          "package_name": "com.example.video_call_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAbAT_Pyl-RWaUDporFiZCZjG4K0zELPtE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

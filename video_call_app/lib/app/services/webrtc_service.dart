@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class WebRTCService {
   RTCPeerConnection? _pc;
@@ -10,28 +11,52 @@ class WebRTCService {
   Stream<RTCIceCandidate> get onIceCandidate => _iceController.stream;
 
   Future<void> setup(RTCVideoRenderer local, RTCVideoRenderer remote) async {
+    // Ensure camera/microphone permissions before attempting getUserMedia
+    final camStatus = await Permission.camera.request();
+    final micStatus = await Permission.microphone.request();
+    if (!camStatus.isGranted || !micStatus.isGranted) {
+      throw Exception('Camera/Microphone permission not granted');
+    }
     final config = {
       'iceServers': [
         {
           'urls': ['stun:stun.l.google.com:19302'],
         },
       ],
+      'sdpSemantics': 'unified-plan',
     };
     _pc = await createPeerConnection(config);
 
     _pc!.onIceCandidate = (c) {
-      _iceController.add(c);
-    };
-    _pc!.onAddStream = (stream) {
-      remote.srcObject = stream;
+      if (!_iceController.isClosed) {
+        _iceController.add(c);
+      }
     };
 
-    _localStream = await navigator.mediaDevices.getUserMedia({
-      'audio': true,
-      'video': {'facingMode': 'user'},
-    });
+    // Unified Plan: use onTrack to render remote media
+    _pc!.onTrack = (RTCTrackEvent event) {
+      if (event.streams.isNotEmpty) {
+        remote.srcObject = event.streams[0];
+      }
+    };
+
+    try {
+      _localStream = await navigator.mediaDevices.getUserMedia({
+        'audio': true,
+        'video': {'facingMode': 'user'},
+      });
+    } catch (e) {
+      // Prevent hard crash; surface a controlled error
+      throw Exception('Failed to acquire media: $e');
+    }
     local.srcObject = _localStream;
-    await _pc!.addStream(_localStream!);
+    // Add local tracks under Unified Plan
+    for (var track in _localStream!.getTracks()) {
+      await _pc!.addTrack(track, _localStream!);
+    }
+    // Ensure transceivers exist for both audio and video
+    await _pc!.addTransceiver(kind: RTCRtpMediaType.RTCRtpMediaTypeAudio);
+    await _pc!.addTransceiver(kind: RTCRtpMediaType.RTCRtpMediaTypeVideo);
   }
 
   Future<RTCSessionDescription> createOffer() async {
@@ -70,7 +95,6 @@ class WebRTCService {
   Future<void> disposePeer() async {
     await _pc?.close();
     await _localStream?.dispose();
-    await _iceController.close();
     _pc = null;
     _localStream = null;
   }
